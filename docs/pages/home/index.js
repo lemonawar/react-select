@@ -9,6 +9,7 @@ import {
   AnimatedMulti,
   BasicSingle,
   BasicGrouped,
+  NestedGrouped,
   BasicMulti,
   CreatableSingle,
   FixedOptions,
@@ -82,6 +83,16 @@ export default function Home() {
       raw={require('!!raw-loader!../../examples/BasicGrouped.js')}
     >
       <BasicGrouped />
+    </ExampleWrapper>
+  )}
+  
+  ${(
+    <ExampleWrapper
+      label="Nested-Grouped"
+      urlPath="docs/examples/NestedGrouped.js"
+      raw={require('!!raw-loader!../../examples/NestedGrouped.js')}
+    >
+      <NestedGrouped />
     </ExampleWrapper>
   )}
 

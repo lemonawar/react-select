@@ -20,6 +20,7 @@ export type GroupProps = CommonProps & ComponentProps;
 export const groupCSS = ({ theme: { spacing } }: GroupProps) => ({
   paddingBottom: spacing.baseUnit * 2,
   paddingTop: spacing.baseUnit * 2,
+  paddingLeft: spacing.baseUnit * 2,
 });
 
 const Group = (props: GroupProps) => {

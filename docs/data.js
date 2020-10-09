@@ -116,3 +116,17 @@ export const groupedOptions = [
     options: flavourOptions,
   },
 ];
+
+export const nestedGroupedOptions = [
+  {
+    label: 'State-Colours',
+    options: [
+      { label: 'Colours', options: colourOptions },
+      { label: 'State', options: stateOptions },
+    ],
+  },
+  {
+    label: 'Flavours',
+    options: flavourOptions,
+  },
+];

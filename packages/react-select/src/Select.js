@@ -128,8 +128,8 @@ export type Props = {
   escapeClearsValue: boolean,
   /* Custom method to filter whether an option should be displayed in the menu */
   filterOption:
-    | (({ label: string, value: string, data: OptionType }, string) => boolean)
-    | null,
+  | (({ label: string, value: string, data: OptionType }, string) => boolean)
+  | null,
   /*
     Formats group labels in the menu as React components
 
@@ -301,6 +301,7 @@ type State = {
   focusedValue: OptionType | null,
   menuOptions: MenuOptions,
   selectValue: OptionsType,
+  isDup: boolean, // Byoungmo
 };
 
 type ElRef = ElementRef<*>;
@@ -318,6 +319,8 @@ export default class Select extends Component<Props, State> {
     isFocused: false,
     menuOptions: { render: [], focusable: [] },
     selectValue: [],
+    isDup: false, // Byoungmo
+    dupCnt: 1     // Byoungmo
   };
 
   // Misc. Instance Properties
@@ -612,6 +615,7 @@ export default class Select extends Component<Props, State> {
     });
   }
   onChange = (newValue: ValueType, actionMeta: ActionMeta) => {
+    // console.log(newValue, "in Select");
     const { onChange, name } = this.props;
     onChange(newValue, { ...actionMeta, name });
   };
@@ -635,17 +639,34 @@ export default class Select extends Component<Props, State> {
     const { selectValue } = this.state;
 
     if (isMulti) {
+      // console.log(this.state.isDup, "is dup in select option");
       if (this.isOptionSelected(newValue, selectValue)) {
-        const candidate = this.getOptionValue(newValue);
-        this.setValue(
-          selectValue.filter(i => this.getOptionValue(i) !== candidate),
-          'deselect-option',
-          newValue
-        );
-        this.announceAriaLiveSelection({
-          event: 'deselect-option',
-          context: { value: this.getOptionLabel(newValue) },
-        });
+        if (!this.state.isDup) {
+          const candidate = this.getOptionValue(newValue);
+          this.setValue(
+            selectValue.filter(i => this.getOptionValue(i) !== candidate),
+            'deselect-option',
+            newValue
+          );
+          this.announceAriaLiveSelection({
+            event: 'deselect-option',
+            context: { value: this.getOptionLabel(newValue) },
+          });
+        } else {
+          if (!this.isOptionDisabled(newValue, selectValue)) {
+            this.setValue([...selectValue, newValue], 'select-option', newValue);
+            this.announceAriaLiveSelection({
+              event: 'select-option',
+              context: { value: this.getOptionLabel(newValue) },
+            });
+          } else {
+            // announce that option is disabled
+            this.announceAriaLiveSelection({
+              event: 'select-option',
+              context: { value: this.getOptionLabel(newValue), isDisabled: true },
+            });
+          }
+        }
       } else {
         if (!this.isOptionDisabled(newValue, selectValue)) {
           this.setValue([...selectValue, newValue], 'select-option', newValue);
@@ -796,8 +817,9 @@ export default class Select extends Component<Props, State> {
   getOptionLabel = (data: OptionType): string => {
     return this.props.getOptionLabel(data);
   };
-  getOptionValue = (data: OptionType): string => {
-    return this.props.getOptionValue(data);
+  getOptionValue = (data: OptionType, cnt): string => {
+    // Byoungmo
+    return this.props.getOptionValue(data, cnt);
   };
   getStyles = (key: string, props: {}): {} => {
     const base = defaultStyles[key](props);
@@ -1303,18 +1325,35 @@ export default class Select extends Component<Props, State> {
       const isSelected = this.isOptionSelected(option, selectValue);
       const label = this.getOptionLabel(option);
       const value = this.getOptionValue(option);
-
-      if (
-        (this.shouldHideSelectedOptions() && isSelected) ||
-        !this.filterOption({ label, value, data: option }, inputValue)
-      ) {
-        return;
+      
+      // Byoungmo
+      let flag = false;
+      if (isSelected) {
+        if (option.value && option.value.length === 1) {
+          flag = true;
+          this.setState({ isDup: true, dupCnt: this.state.dupCnt + 1 });
+        }
+      }
+      if (!flag) {
+        if (
+          (this.shouldHideSelectedOptions() && isSelected) ||
+          !this.filterOption({ label, value, data: option }, inputValue)
+        ) {
+          return;
+        }
       }
 
       const onHover = isDisabled ? undefined : () => this.onOptionHover(option);
       const onSelect = isDisabled ? undefined : () => this.selectOption(option);
-      const optionId = `${this.getElementId('option')}-${id}`;
 
+      // Byoungmo
+      let optionId = `${this.getElementId('option')}`;
+      if (flag) {
+        optionId += '-' + (parseInt(id) + this.state.dupCnt);
+      } else {
+        optionId += '-' + id;
+      }
+      // console.log(optionId);
       return {
         innerProps: {
           id: optionId,
@@ -1333,6 +1372,27 @@ export default class Select extends Component<Props, State> {
       };
     };
 
+    // Byoungmo
+    const parseOptions = (acc, item, itemIndex) => {
+      if (item.options) {
+        const { options: items } = item;
+        const children = items
+          .map((child, i) => parseOptions(acc, child, `${itemIndex}-${i}`))
+          .filter(Boolean);
+        return {
+          type: 'group',
+          key: `${this.getElementId('group')}-${itemIndex}`,
+          data: item,
+          options: children,
+        };
+      }
+      else {
+        const option = toOption(item, `${itemIndex}`);
+        if (option && !option.isDisabled) acc.focusable.push(item);
+        return option;
+      }
+    };
+
     return options.reduce(
       (acc, item, itemIndex) => {
         if (item.options) {
@@ -1341,11 +1401,7 @@ export default class Select extends Component<Props, State> {
 
           const { options: items } = item;
           const children = items
-            .map((child, i) => {
-              const option = toOption(child, `${itemIndex}-${i}`);
-              if (option) acc.focusable.push(child);
-              return option;
-            })
+            .map((child, i) => parseOptions(acc, child, `${itemIndex}-${i}`)) // Byoungmo
             .filter(Boolean);
           if (children.length) {
             const groupId = `${this.getElementId('group')}-${itemIndex}`;
@@ -1358,6 +1414,8 @@ export default class Select extends Component<Props, State> {
           }
         } else {
           const option = toOption(item, `${itemIndex}`);
+          // creatable option
+          // console.log(option, "option");
           if (option) {
             acc.render.push(option);
             acc.focusable.push(item);
@@ -1384,19 +1442,19 @@ export default class Select extends Component<Props, State> {
     // An aria live message representing the currently focused value in the select.
     const focusedValueMsg = focusedValue
       ? valueFocusAriaMessage({
-          focusedValue,
-          getOptionLabel: this.getOptionLabel,
-          selectValue,
-        })
+        focusedValue,
+        getOptionLabel: this.getOptionLabel,
+        selectValue,
+      })
       : '';
     // An aria live message representing the currently focused option in the select.
     const focusedOptionMsg =
       focusedOption && menuIsOpen
         ? optionFocusAriaMessage({
-            focusedOption,
-            getOptionLabel: this.getOptionLabel,
-            options,
-          })
+          focusedOption,
+          getOptionLabel: this.getOptionLabel,
+          options,
+        })
         : '';
     // An aria live message representing the set of focusable results and current searchterm/inputvalue.
     const resultsMsg = resultsAriaMessage({
@@ -1510,6 +1568,8 @@ export default class Select extends Component<Props, State> {
       const selectValues: Array<any> = selectValue.map((opt, index) => {
         const isOptionFocused = opt === focusedValue;
 
+        // Byoungmo
+        // console.log(this.getOptionValue(opt, index), "render??");
         return (
           <MultiValue
             {...commonProps}
@@ -1520,7 +1580,7 @@ export default class Select extends Component<Props, State> {
             }}
             isFocused={isOptionFocused}
             isDisabled={isDisabled}
-            key={this.getOptionValue(opt)}
+            key={this.getOptionValue(opt, index)}
             index={index}
             removeProps={{
               onClick: () => this.removeValue(opt),
@@ -1685,27 +1745,56 @@ export default class Select extends Component<Props, State> {
       );
     };
 
+    const renderGroup = (props: GroupType) => {
+      const { type, ...group } = props;
+      const headingId = `${props.key}-heading`;
+      return (
+        <Group
+          {...commonProps}
+          {...group}
+          Heading={GroupHeading}
+          innerProps={{
+            'aria-expanded': true,
+            'aria-labelledby': headingId,
+            role: 'group',
+          }}
+          headingProps={{
+            id: headingId,
+          }}
+          label={this.formatGroupLabel(props.data)}
+        >
+          {props
+            .options
+            .map(option => (option.type === 'group')
+              ? (renderGroup(option))
+              : (render(option)))
+          }
+        </Group>
+      );
+    };
+
     let menuUI;
 
     if (this.hasOptions()) {
       menuUI = menuOptions.render.map(item => {
         if (item.type === 'group') {
-          const { type, ...group } = item;
-          const headingId = `${item.key}-heading`;
+          // const { type, ...group } = item;
+          // const headingId = `${item.key}-heading`;
 
-          return (
-            <Group
-              {...commonProps}
-              {...group}
-              Heading={GroupHeading}
-              headingProps={{
-                id: headingId,
-              }}
-              label={this.formatGroupLabel(item.data)}
-            >
-              {item.options.map(option => render(option))}
-            </Group>
-          );
+          // return (
+          //   <Group
+          //     {...commonProps}
+          //     {...group}
+          //     Heading={GroupHeading}
+          //     headingProps={{
+          //       id: headingId,
+          //     }}
+          //     label={this.formatGroupLabel(item.data)}
+          //   >
+          //     {item.options.map(option => render(option))}
+          //   </Group>
+          // );
+          return renderGroup(item);
         } else if (item.type === 'option') {
           return render(item);
         }
@@ -1776,8 +1865,8 @@ export default class Select extends Component<Props, State> {
         {menuElement}
       </MenuPortal>
     ) : (
-      menuElement
-    );
+        menuElement
+      );
   }
   renderFormField() {
     const { delimiter, isDisabled, isMulti, name } = this.props;
@@ -1803,8 +1892,8 @@ export default class Select extends Component<Props, State> {
               />
             ))
           ) : (
-            <input name={name} type="hidden" />
-          );
+              <input name={name} type="hidden" />
+            );
 
         return <div>{input}</div>;
       }

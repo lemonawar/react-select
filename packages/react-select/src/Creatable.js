@@ -63,17 +63,18 @@ const builtins = {
     inputValue: string,
     selectValue: OptionsType,
     selectOptions: OptionsType
-  ) =>
-    !(
+  ) => {
+    return !(
       !inputValue ||
       selectValue.some(option => compareOption(inputValue, option)) ||
       selectOptions.some(option => compareOption(inputValue, option))
-    ),
-  getNewOptionData: (inputValue: string, optionLabel: Node) => ({
+    )},
+  getNewOptionData: (inputValue: string, optionLabel: Node) => {
+    return ({
     label: optionLabel,
     value: inputValue,
     __isNew__: true,
-  }),
+  })},
 };
 
 export const defaultProps: DefaultCreatableProps = {
@@ -98,7 +99,7 @@ export const makeCreatableSelect = <C: {}>(
       const options = props.options || [];
       this.state = {
         newOption: undefined,
-        options: options,
+        options: options
       };
     }
     UNSAFE_componentWillReceiveProps(nextProps: CreatableProps & C) {
@@ -114,11 +115,20 @@ export const makeCreatableSelect = <C: {}>(
       } = nextProps;
       const options = nextProps.options || [];
       let { newOption } = this.state;
+      
+      // console.log(nextProps.options);
       if (isValidNewOption(inputValue, cleanValue(value), options)) {
         newOption = getNewOptionData(inputValue, formatCreateLabel(inputValue));
       } else {
-        newOption = undefined;
+        // Forced making new option
+        if(inputValue.length === 1) {          
+          newOption = getNewOptionData(inputValue, formatCreateLabel(inputValue), true);
+        }else {
+          newOption = undefined;
+        }
       }
+      // console.log(newOption, options, (allowCreateWhileLoading || !isLoading), createOptionPosition);
+    
       this.setState({
         newOption: newOption,
         options:
@@ -139,15 +149,21 @@ export const makeCreatableSelect = <C: {}>(
         value,
         name,
       } = this.props;
+      
+      
+      // console.log(newValue, actionMeta, "in onChange");
       if (actionMeta.action !== 'select-option') {
-        return onChange(newValue, actionMeta);
+        // console.log("not select-option")
+        if(actionMeta.action !== 'deselect-option') {
+          return onChange(newValue, actionMeta);
+        }
       }
       const { newOption } = this.state;
       const valueArray = Array.isArray(newValue) ? newValue : [newValue];
-
       if (valueArray[valueArray.length - 1] === newOption) {
-        if (onCreateOption) onCreateOption(inputValue);
-        else {
+        if (onCreateOption) {
+          onCreateOption(inputValue);
+        } else {
           const newOptionData = getNewOptionData(inputValue, inputValue);
           const newActionMeta = { action: 'create-option', name };
           if (isMulti) {
