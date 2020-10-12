@@ -87,7 +87,25 @@
     "webpack-dev-server": "^3.3.1"
   },
   "scripts": {
-
+    "build": "preconstruct build",
+    "watch": "preconstruct watch",
+    "coveralls": "cat coverage/lcov.info | coveralls",
+    "lint": "eslint .",
+    "start": "cd docs && yarn start",
+    "build:docs": "cd docs && yarn build:docs",
+    "fresh": "rm -rf node_modules && yarn install",
+    "test": "npm run test:jest && npm run test:cypress",
+    "test:jest": "jest --coverage",
+    "e2e": "concurrently --kill-others --success=first --names 'SERVER,E2E' 'yarn start --progress=false --no-info' 'yarn test:cypress'",
+    "precommit": "flow check",
+    "postinstall": "preconstruct dev",
+    "test:cypress": "yarn test:cypress:chrome && yarn test:cypress:firefox",
+    "test:cypress:chrome": "cypress run --browser chrome",
+    "test:cypress:firefox": "cypress run --browser firefox",
+    "test:cypress:watch": "node ./node_modules/.bin/cypress open",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release": "yarn build && changeset publish"
   },
   "files": [
     "dist",
